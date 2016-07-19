@@ -13,9 +13,13 @@ var domain = argv['domain'] || false;
 var req = request.createClient('https://' + domain);
 var url = '';
 var optsMethod = argv['method'] || false;
+var optsByVariant = argv['byvariant'] || false;
+var optsSave = argv['save'] || false;
 var optsSaveDir = argv['savedir'] || __dirname;
 var optsSearch = argv['search'] || false;
 var optsCollection = argv['collection'] || false;
+var optsSaveAll = optsSearch;
+
 var curCollection;
 
 url = '/collections/' + argv['collection'];
@@ -29,7 +33,6 @@ if(optsCollection) {
             curCollection = optsCollection[i];
             
             req.get('/collections/' + curCollection + '/products.json?limit=10000', function(err, res, body) {
-                        console.log(curCollection);
 
                 parseCollection(curCollection, body);
             
@@ -53,7 +56,7 @@ if(optsCollection) {
     
     shopifyDump(domain, function(err, masterHash) { // callback to execute with hash of products
     
-        fs.writeFileSync(optsSaveDir + '/' + domain + '.products.json', JSON.stringify(masterHash));
+        // fs.writeFileSync(optsSaveDir + '/' + domain + '.products.json', JSON.stringify(masterHash));
         
     }, {
         
@@ -73,21 +76,13 @@ if(optsCollection) {
     
 }
 
-function search(terms) {
-    
-    var javascriptProgrammers = rjsonSearch.find(programmers, 'javascript');
-    
-    console.log(javascriptProgrammers.length);
-    
-}
-
 function parseCollection(collection, body) { 
 //
 // This is called each time a collection is downloaded.
 //
-    console.log('Parsing Collection: ' + domain + ': ' + collection + ' (Products: ' + body.products.length + ")");
+    if(optsSave) console.log('Parsing Collection: ' + domain + ': ' + collection + ' (Products: ' + body.products.length + ")");
 
-var searchResults = [];
+    var searchResults = [];
 
     if(body.products.length > 0) {
 
@@ -96,7 +91,9 @@ var searchResults = [];
         //
         for(var i = 0; i < body.products.length; i++) {
             
-            if(verbose) console.log("\t" + collection + ": " + body.products[i].title);
+            // console.log(body.products[i]);
+            
+            // if(verbose) console.log("\t" + collection + ": " + body.products[i].title);
             
             body.products[i].link = 'https://' + domain + '/products/' +  body.products[i].handle;
              
@@ -108,7 +105,7 @@ var searchResults = [];
                     
                     searchResults.push(body.products[i]);
 
-                        console.log("\t" + collection + ": " + body.products[i].title + ' (' + body.products[i].link + ')');
+                    // console.log("\t" + collection + ": " + body.products[i].title + ' (' + body.products[i].link + ')');
                                         
                 }
                 
@@ -116,30 +113,28 @@ var searchResults = [];
             
         }
         
-    // console.log(body);
-    
-        //
-        // Save each product collection to a separate file.
-        //
         // fs.writeFileSync(__dirname + domain + '/' + '/products/' + type + '.json', JSON.stringify(body.products));
         
-        // var fileName = __dirname + '/' + domain + '/' + '/products/' + collection + '.json';
         var fileName;
-        
+        var isSaveable = false;
         var jsonArr = body.products;
         var options = {
                 
             delimiter : {
+                
                 wrap  : '"', // Double Quote (") character
                 field : ',', // Comma field delimiter
                 array : ';', // Semicolon array value delimiter
                 eol   : '\n' // Newline delimiter
+                
             },
+            
             prependHeader    : true,
             sortHeader       : false,
             trimHeaderValues : true,
-            trimFieldValues  :  true,
-            keys             : ['id', 'product_type', 'vendor', 'title', 'handle', 'link','published_at', 'created_at','updated_at']
+            trimFieldValues  : true,
+            
+            keys             : []
             
         };
         
@@ -147,12 +142,90 @@ var searchResults = [];
         
             jsonArr = searchResults;
             fileName = optsSaveDir + '/' + domain + '.' + collection + '.search.' + optsSearch + '.csv';
+            
+            if(optsSave) {
+                
+                isSaveable = true;
+                
+            }
 
-        } else {
+        } else if(!optsSearch) {
             
             fileName = optsSaveDir + '/' + domain + '.' + collection + '.csv';
             
+            if(optsSave) {
+                
+                isSaveable = true;
+                
+            }
+            
         }
+        
+        if(optsByVariant) {
+            
+            var build = [];
+            
+            if(jsonArr.length > 0) {
+                
+                for(var i = 0; i < jsonArr.length; i++) {
+                
+    
+                    
+                    for(var j = 0; j < jsonArr[i].variants.length; j++) {
+                        
+                        
+                        var newRow = {
+                            
+                            id: jsonArr[i].id,
+                            domain: jsonArr[i].domain,
+                            collection: jsonArr[i].collection,
+                            product_type:  jsonArr[i].product_type,
+                            vendor:  jsonArr[i].vendor,
+                            title:  jsonArr[i].title,
+                            handle:  jsonArr[i].handle,
+                            
+                            variant_id: jsonArr[i].variants[j].id,
+                            variant_title: jsonArr[i].variants[j].title,
+                            variant_available: jsonArr[i].variants[j].available,
+                            variant_price: jsonArr[i].variants[j].price,
+                            
+                            link:  jsonArr[i].link,
+                            published_at:  jsonArr[i].published_at,
+                            created_at:  jsonArr[i].created_at,
+                            updated_at:  jsonArr[i].updated_at
+                            
+                        }
+                        
+                        if(newRow.variant_available) {
+                        
+                            console.log('[' + domain + ' "' + collection + '"] ' + newRow.title + ' = ' + newRow.variant_title + ": $" + newRow.variant_price + ' (Available? ' + newRow.variant_available + ') ' + newRow.link);
+                            
+                        }
+
+                        build.push(newRow);
+                        // console.log(newRow);
+                        
+                    }
+                    
+                    
+                }
+                
+                jsonArr = build;
+            
+            }
+            
+            options.keys = ['id', 'product_type', 'vendor', 'title', 'variant_id', 'variant_title', 'variant_available', 'variant_price', 'handle', 'link','published_at', 'created_at','updated_at'];
+            
+        } else {
+            
+            options.keys = ['id', 'product_type', 'vendor', 'title', 'handle', 'link','published_at', 'created_at','updated_at'];
+        
+        }
+        
+
+// console.log(jsonArr);
+        
+        
 
         var json2csvCallback = function (err, csv) {
             
@@ -161,18 +234,26 @@ var searchResults = [];
             fs.writeFile(fileName, csv, function(err){
         
                 // if (err) throw err;
-            
                 if(verbose) console.log('Saved collection to: ' + fileName);
                 
             });
             
         };
 
-        converter.json2csv(jsonArr, json2csvCallback, options);
+        if(isSaveable) {
+            
+            if(jsonArr.length > 0) {
+            
+                converter.json2csv(jsonArr, json2csvCallback, options);
+            
+            }
+            
+        }
 
     }
     
 }
+
 function err(e) {
     
     console.log(e);
