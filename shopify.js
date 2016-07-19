@@ -91,10 +91,6 @@ function parseCollection(collection, body) {
         //
         for(var i = 0; i < body.products.length; i++) {
             
-            // console.log(body.products[i]);
-            
-            // if(verbose) console.log("\t" + collection + ": " + body.products[i].title);
-            
             body.products[i].link = 'https://' + domain + '/products/' +  body.products[i].handle;
              
             if(optsSearch) {
@@ -138,15 +134,25 @@ function parseCollection(collection, body) {
             
         };
         
-        if(optsSearch && searchResults.length > 0) {
+        if(optsSearch) {
         
-            jsonArr = searchResults;
-            fileName = optsSaveDir + '/' + domain + '.' + collection + '.search.' + optsSearch + '.csv';
-            
-            if(optsSave) {
+            if(searchResults.length > 0) {
                 
-                isSaveable = true;
+                jsonArr = searchResults;
+                fileName = optsSaveDir + '/' + domain + '.' + collection + '.search.' + optsSearch + '.csv';
                 
+                if(optsSave) {
+                    
+                    isSaveable = true;
+                    
+                }
+                
+            } else {
+                
+                console.log("No results found for '" + optsSearch + "'.");
+                
+                isSaveable = false;
+
             }
 
         } else if(!optsSearch) {
@@ -164,15 +170,11 @@ function parseCollection(collection, body) {
         if(optsByVariant) {
             
             var build = [];
-            
-            if(jsonArr.length > 0) {
+            if(jsonArr.length > 0 && (optsSearch && searchResults.length > 0)) {
                 
                 for(var i = 0; i < jsonArr.length; i++) {
                 
-    
-                    
                     for(var j = 0; j < jsonArr[i].variants.length; j++) {
-                        
                         
                         var newRow = {
                             
@@ -210,9 +212,10 @@ function parseCollection(collection, body) {
                     
                 }
                 
-                jsonArr = build;
             
             }
+            
+            jsonArr = build;
             
             options.keys = ['id', 'product_type', 'vendor', 'title', 'variant_id', 'variant_title', 'variant_available', 'variant_price', 'handle', 'link','published_at', 'created_at','updated_at'];
             
